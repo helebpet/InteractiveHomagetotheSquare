@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Homage to the Square</title>
-    <!-- Favicon -->
+    <!-- Favicon (make sure favicon.png exists in your project root) -->
     <link rel="icon" type="image/png" href="favicon.png">
     <style>
         * {
@@ -12,7 +12,6 @@
             padding: 0;
             box-sizing: border-box;
         }
-        
         body {
             background: #f5f5f5;
             overflow: hidden;
@@ -23,7 +22,6 @@
             align-items: center;
             justify-content: center;
         }
-        
         #container {
             position: relative;
             cursor: pointer;
@@ -31,12 +29,10 @@
             outline: none;
             user-select: none;
         }
-        
         #info {
             position: absolute;
             top: 30px;
             left: 30px;
-            color: #333;
             font-size: 16px;
             font-weight: 300;
             opacity: 0;
@@ -44,12 +40,11 @@
             z-index: 10;
             line-height: 1.4;
             transition: opacity 0.3s ease;
+            color: #333; /* fallback */
         }
-        
         #container:hover #info, #container:focus-visible #info {
             opacity: 0.8;
         }
-        
         #squares-container {
             position: relative;
             width: 500px;
@@ -58,19 +53,16 @@
             align-items: center;
             justify-content: center;
         }
-        
         .square {
             position: absolute;
             transition: all 1.2s cubic-bezier(0.4, 0, 0.2, 1);
             transform-origin: center center;
             will-change: width, height, left, top, background-color, filter;
         }
-        
         .square:nth-child(1) { z-index: 1; }
         .square:nth-child(2) { z-index: 2; }
         .square:nth-child(3) { z-index: 3; }
         .square:nth-child(4) { z-index: 4; }
-
         #export-btn {
             position: absolute;
             top: 30px;
@@ -79,30 +71,25 @@
             padding: 10px 20px;
             font-size: 14px;
             font-weight: 300;
-            background: rgba(255, 255, 255, 0.9);
             border: 1px solid #ddd;
             border-radius: 3px;
             cursor: pointer;
             transition: all 0.3s ease;
             opacity: 0;
             pointer-events: none;
+            /* color/border set dynamically for contrast */
         }
-        
         #container:hover #export-btn, #container:focus-visible #export-btn {
             opacity: 1;
             pointer-events: auto;
         }
-        
         #export-btn:hover {
-            background: #fff;
             box-shadow: 0 2px 8px rgba(0,0,0,0.1);
         }
-
         #color-info {
             position: absolute;
             bottom: 30px;
             right: 30px;
-            color: #666;
             font-size: 12px;
             opacity: 0;
             pointer-events: none;
@@ -110,8 +97,8 @@
             font-weight: 300;
             text-align: right;
             transition: opacity 0.3s ease;
+            color: #666; /* fallback */
         }
-        
         #container:hover #color-info, #container:focus-visible #color-info {
             opacity: 0.7;
         }
@@ -124,26 +111,132 @@
             After Josef Albers<br>
             <small>Click or press Space/Enter to explore color relationships</small>
         </div>
-        
         <div id="squares-container">
             <div class="square" id="square1"></div>
             <div class="square" id="square2"></div>
             <div class="square" id="square3"></div>
             <div class="square" id="square4"></div>
         </div>
-        
         <div id="color-info">
             <span id="palette-name">Warm Earth</span><br>
             <small>Colors interact through simultaneous contrast</small>
         </div>
-        
         <button id="export-btn" tabindex="0" aria-label="Export as PNG">Export PNG</button>
     </div>
-    
     <canvas id="export-canvas" style="display:none;"></canvas>
-    
     <script>
-        // Helper for HSL->HEX (needed for random palettes)
+        // --- Utility Functions for Color Contrast ---
+        function hexToRgb(hex) {
+            hex = hex.replace('#','');
+            if (hex.length === 3) hex = hex.split('').map(s => s+s).join('');
+            const num = parseInt(hex, 16);
+            return [num >> 16, (num >> 8) & 255, num & 255];
+        }
+        function luminance(r, g, b) {
+            const a = [r, g, b].map(function(v) {
+                v = v / 255;
+                return v <= 0.03928 ? v / 12.92 : Math.pow((v+0.055)/1.055, 2.4);
+            });
+            return 0.2126 * a[0] + 0.7152 * a[1] + 0.0722 * a[2];
+        }
+        function getContrastYIQ(hex) {
+            const [r, g, b] = hexToRgb(hex);
+            return luminance(r, g, b) > 0.5 ? '#222' : '#fff';
+        }
+
+        // --- Color Palettes and Palette Generation ---
+        const colorPalettes = [
+            { name: "Warm Earth", colors: ["#8B4513", "#CD853F", "#F4A460", "#FFF8DC"] },
+            { name: "Desert Sand", colors: ["#704214", "#B8860B", "#DAA520", "#FFFACD"] },
+            { name: "Clay Pottery", colors: ["#A0522D", "#D2691E", "#F4A460", "#FFEFD5"] },
+            { name: "Rust Canyon", colors: ["#B22222", "#CD853F", "#F4A460", "#FFFAF0"] },
+            { name: "Amber Glow", colors: ["#8B4513", "#DAA520", "#FFD700", "#FFFACD"] },
+            { name: "Sandstone", colors: ["#8B7355", "#D2B48C", "#F5DEB3", "#FFFEF7"] },
+            { name: "Burnt Umber", colors: ["#8A2BE2", "#CD853F", "#DEB887", "#FFF8DC"] },
+            { name: "Sienna Earth", colors: ["#A0522D", "#CD853F", "#F4A460", "#FFEFD5"] },
+            { name: "Terracotta", colors: ["#8B4513", "#CD853F", "#DEB887", "#F5DEB3"] },
+            { name: "Adobe Clay", colors: ["#CD853F", "#DEB887", "#F5DEB3", "#FFFEF7"] },
+            { name: "Sunset Orange", colors: ["#7c2d12", "#ea580c", "#fb923c", "#fed7aa"] },
+            { name: "Coral Warmth", colors: ["#991b1b", "#dc2626", "#f87171", "#fecaca"] },
+            { name: "Autumn Maple", colors: ["#7f1d1d", "#b91c1c", "#ef4444", "#fee2e2"] },
+            { name: "Cherry Fire", colors: ["#DC143C", "#FF6347", "#FF7F50", "#FFE4E1"] },
+            { name: "Paprika", colors: ["#CC6600", "#FF7F00", "#FFA500", "#FFEBCD"] },
+            { name: "Crimson Tide", colors: ["#8B0000", "#DC143C", "#FF6347", "#FFE4E1"] },
+            { name: "Vermillion", colors: ["#B22222", "#FF4500", "#FF6347", "#FFEFD5"] },
+            { name: "Brick Red", colors: ["#8B0000", "#B22222", "#CD5C5C", "#FFE4E1"] },
+            { name: "Copper Flame", colors: ["#B87333", "#CD853F", "#DAA520", "#FFFACD"] },
+            { name: "Rust Metal", colors: ["#B7410E", "#CD853F", "#D2691E", "#FFEFD5"] },
+            { name: "Golden Hour", colors: ["#92400e", "#d97706", "#f59e0b", "#fef3c7"] },
+            { name: "Honey Gold", colors: ["#B8860B", "#DAA520", "#FFD700", "#FFFACD"] },
+            { name: "Amber Sunset", colors: ["#FF8C00", "#FFD700", "#FFFF00", "#FFFACD"] },
+            { name: "Wheat Field", colors: ["#D2691E", "#DAA520", "#F0E68C", "#FFFACD"] },
+            { name: "Marigold", colors: ["#FF8C00", "#FFA500", "#FFD700", "#FFFEF7"] },
+            { name: "Saffron", colors: ["#FF8C00", "#FFD700", "#FFFF00", "#FFFACD"] },
+            { name: "Butter", colors: ["#DAA520", "#F0E68C", "#FFFF00", "#FFFACD"] },
+            { name: "Cool Blues", colors: ["#1e3a8a", "#3b82f6", "#93c5fd", "#dbeafe"] },
+            { name: "Arctic Blue", colors: ["#0c4a6e", "#0284c7", "#38bdf8", "#bae6fd"] },
+            { name: "Steel Blue", colors: ["#1e40af", "#3b82f6", "#93c5fd", "#dbeafe"] },
+            { name: "Navy Deep", colors: ["#000080", "#4169E1", "#6495ED", "#E6F3FF"] },
+            { name: "Sapphire", colors: ["#082f49", "#0369a1", "#0ea5e9", "#e0f2fe"] },
+            { name: "Cobalt", colors: ["#1e40af", "#3b82f6", "#60a5fa", "#dbeafe"] },
+            { name: "Prussian Blue", colors: ["#003153", "#0F4C75", "#3282B8", "#BBE1FA"] },
+            { name: "Cerulean", colors: ["#007BA7", "#0F4C75", "#3282B8", "#BBE1FA"] },
+            { name: "Powder Blue", colors: ["#4682B4", "#87CEEB", "#B0E0E6", "#F0F8FF"] },
+            { name: "Periwinkle", colors: ["#6495ED", "#9370DB", "#DDA0DD", "#F8F8FF"] },
+            { name: "Ocean Teal", colors: ["#134e4a", "#0f766e", "#14b8a6", "#99f6e4"] },
+            { name: "Mint Fresh", colors: ["#065f46", "#10b981", "#6ee7b7", "#d1fae5"] },
+            { name: "Turquoise", colors: ["#008080", "#20B2AA", "#48D1CC", "#E0FFFF"] },
+            { name: "Aquamarine", colors: ["#00CED1", "#48D1CC", "#7FFFD4", "#F0FFFF"] },
+            { name: "Seafoam", colors: ["#2E8B57", "#3CB371", "#66CDAA", "#F0FFF0"] },
+            { name: "Jade", colors: ["#00A86B", "#20B2AA", "#7FFFD4", "#F0FFFF"] },
+            { name: "Forest Green", colors: ["#14532d", "#16a34a", "#4ade80", "#bbf7d0"] },
+            { name: "Sage Green", colors: ["#166534", "#22c55e", "#86efac", "#dcfce7"] },
+            { name: "Emerald", colors: ["#064e3b", "#059669", "#34d399", "#d1fae5"] },
+            { name: "Olive", colors: ["#6B8E23", "#9ACD32", "#ADFF2F", "#F0FFF0"] },
+            { name: "Lime", colors: ["#32CD32", "#7FFF00", "#ADFF2F", "#F0FFF0"] },
+            { name: "Pine", colors: ["#01796F", "#2E8B57", "#90EE90", "#F0FFF0"] },
+            { name: "Moss", colors: ["#8FBC8F", "#90EE90", "#98FB98", "#F0FFF0"] },
+            { name: "Chartreuse", colors: ["#7FFF00", "#ADFF2F", "#CCFF99", "#F0FFF0"] },
+            { name: "Purple Depth", colors: ["#581c87", "#9333ea", "#c084fc", "#e9d5ff"] },
+            { name: "Lavender Fields", colors: ["#4c1d95", "#7c3aed", "#a78bfa", "#e0e7ff"] },
+            { name: "Royal Purple", colors: ["#6b21a8", "#a855f7", "#c4b5fd", "#ede9fe"] },
+            { name: "Plum Wine", colors: ["#86198f", "#c026d3", "#e879f9", "#f5d0fe"] },
+            { name: "Amethyst", colors: ["#9932CC", "#BA55D3", "#DDA0DD", "#F8F8FF"] },
+            { name: "Violet", colors: ["#8A2BE2", "#9400D3", "#DA70D6", "#F8F8FF"] },
+            { name: "Indigo", colors: ["#4B0082", "#6A0DAD", "#9370DB", "#E6E6FA"] },
+            { name: "Orchid", colors: ["#DA70D6", "#DDA0DD", "#EE82EE", "#F8F8FF"] },
+            { name: "Lilac", colors: ["#B19CD9", "#C8A2C8", "#DDA0DD", "#F8F8FF"] },
+            { name: "Rose Garden", colors: ["#881337", "#e11d48", "#fb7185", "#fda4af"] },
+            { name: "Cherry Blossom", colors: ["#9f1239", "#e11d48", "#f472b6", "#fbcfe8"] },
+            { name: "Dusty Rose", colors: ["#be185d", "#ec4899", "#f9a8d4", "#fce7f3"] },
+            { name: "Magenta", colors: ["#C41E3A", "#FF1493", "#FF69B4", "#FFB6C1"] },
+            { name: "Fuchsia", colors: ["#FF00FF", "#FF1493", "#FF69B4", "#FFB6C1"] },
+            { name: "Hot Pink", colors: ["#FF1493", "#FF69B4", "#FFB6C1", "#FFF0F5"] },
+            { name: "Blush", colors: ["#DE3163", "#FF69B4", "#FFB6C1", "#FFF0F5"] },
+            { name: "Salmon", colors: ["#FA8072", "#FFA07A", "#FFB6C1", "#FFF0F5"] },
+            { name: "Monochrome", colors: ["#111827", "#4b5563", "#9ca3af", "#f3f4f6"] },
+            { name: "Warm Grays", colors: ["#44403c", "#78716c", "#a8a29e", "#f5f5f4"] },
+            { name: "Cool Grays", colors: ["#374151", "#6b7280", "#9ca3af", "#f9fafb"] },
+            { name: "Stone", colors: ["#292524", "#57534e", "#a8a29e", "#fafaf9"] },
+            { name: "Charcoal", colors: ["#36454F", "#708090", "#C0C0C0", "#F8F8FF"] },
+            { name: "Silver", colors: ["#708090", "#C0C0C0", "#DCDCDC", "#F8F8FF"] },
+            { name: "Platinum", colors: ["#E5E4E2", "#C0C0C0", "#F5F5F5", "#FFFFFF"] },
+            { name: "Graphite", colors: ["#41424C", "#696969", "#A9A9A9", "#F5F5F5"] },
+            { name: "Copper Patina", colors: ["#0f766e", "#14b8a6", "#5eead4", "#ccfbf1"] },
+            { name: "Sunset Gradient", colors: ["#7c2d12", "#f59e0b", "#fbbf24", "#fef3c7"] },
+            { name: "Ocean Depth", colors: ["#1e293b", "#0ea5e9", "#7dd3fc", "#e0f2fe"] },
+            { name: "Forest Floor", colors: ["#365314", "#84cc16", "#bef264", "#f7fee7"] },
+            { name: "Wine Cellar", colors: ["#450a0a", "#991b1b", "#f87171", "#fee2e2"] },
+            { name: "Midnight Sky", colors: ["#0c0a09", "#1f2937", "#6b7280", "#f3f4f6"] },
+            { name: "Aurora", colors: ["#1e40af", "#10b981", "#f59e0b", "#fef3c7"] },
+            { name: "Nebula", colors: ["#581c87", "#0ea5e9", "#f472b6", "#fce7f3"] },
+            { name: "Cosmic", colors: ["#0c0a09", "#7c3aed", "#06b6d4", "#e0f2fe"] },
+            { name: "Prism", colors: ["#dc2626", "#f59e0b", "#10b981", "#3b82f6"] },
+            { name: "Desert Bloom", colors: ["#a16207", "#f59e0b", "#fb7185", "#fecaca"] },
+            { name: "Tropical", colors: ["#059669", "#06b6d4", "#f59e0b", "#fef3c7"] },
+            { name: "Vintage", colors: ["#8b5cf6", "#f59e0b", "#10b981", "#fef3c7"] },
+            { name: "Neon", colors: ["#10b981", "#06b6d4", "#f472b6", "#fbbf24"] }
+        ];
         function hslToHex(h, s, l) {
             s /= 100;
             l /= 100;
@@ -161,43 +254,6 @@
             b = Math.round((b + m) * 255);
             return "#" + [r, g, b].map(x => x.toString(16).padStart(2, "0")).join("");
         }
-
-        // --- Color palettes and random generation (as before, omitted for brevity) ---
-        // ... (colorPalettes, generateRandomPalette, generateAnalogous, etc.) ...
-        // For brevity, keep your original colorPalettes and random palette logic here.
-
-        // Expanded Josef Albers-inspired color palettes with extensive variations
-        const colorPalettes = [
-            // Warm Earth Tones (Extended)
-            { name: "Warm Earth", colors: ["#8B4513", "#CD853F", "#F4A460", "#FFF8DC"] },
-            { name: "Desert Sand", colors: ["#704214", "#B8860B", "#DAA520", "#FFFACD"] },
-            { name: "Clay Pottery", colors: ["#A0522D", "#D2691E", "#F4A460", "#FFEFD5"] },
-            { name: "Rust Canyon", colors: ["#B22222", "#CD853F", "#F4A460", "#FFFAF0"] },
-            { name: "Amber Glow", colors: ["#8B4513", "#DAA520", "#FFD700", "#FFFACD"] },
-            { name: "Sandstone", colors: ["#8B7355", "#D2B48C", "#F5DEB3", "#FFFEF7"] },
-            { name: "Burnt Umber", colors: ["#8A2BE2", "#CD853F", "#DEB887", "#FFF8DC"] },
-            { name: "Sienna Earth", colors: ["#A0522D", "#CD853F", "#F4A460", "#FFEFD5"] },
-            { name: "Terracotta", colors: ["#8B4513", "#CD853F", "#DEB887", "#F5DEB3"] },
-            { name: "Adobe Clay", colors: ["#CD853F", "#DEB887", "#F5DEB3", "#FFFEF7"] },
-            // ... (rest of palettes unchanged, omitted for brevity)
-            // Orange & Red Spectrum, Golden Yellows, Cool Blues, etc.
-            // (same as your original file)
-            { name: "Neon", colors: ["#10b981", "#06b6d4", "#f472b6", "#fbbf24"] }
-        ];
-
-        function generateRandomPalette() {
-            const algorithms = [
-                generateAnalogous,
-                generateComplementary,
-                generateTriadic,
-                generateMonochromatic,
-                generateSplitComplementary,
-                generateTetradic
-            ];
-            const algorithm = algorithms[Math.floor(Math.random() * algorithms.length)];
-            return algorithm();
-        }
-
         function generateAnalogous() {
             const baseHue = Math.random() * 360;
             const colors = [];
@@ -271,11 +327,23 @@
             }
             return { name: "Tetradic", colors };
         }
+        function generateRandomPalette() {
+            const algorithms = [
+                generateAnalogous,
+                generateComplementary,
+                generateTriadic,
+                generateMonochromatic,
+                generateSplitComplementary,
+                generateTetradic
+            ];
+            const algorithm = algorithms[Math.floor(Math.random() * algorithms.length)];
+            return algorithm();
+        }
 
+        // --- State and DOM refs ---
         let currentPaletteIndex = 0;
         let frame = 0;
         let isAnimating = true;
-
         const container = document.getElementById('container');
         const squaresContainer = document.getElementById('squares-container');
         const squares = [
@@ -287,69 +355,60 @@
         const paletteNameElement = document.getElementById('palette-name');
         const exportBtn = document.getElementById('export-btn');
         const exportCanvas = document.getElementById('export-canvas');
-
         // Albers-style square sizing (following his proportional relationships)
-        const squareSizes = [450, 340, 230, 120]; // Outer to inner
+        const squareSizes = [450, 340, 230, 120];
         const squareOffsets = [
-            { x: 0, y: 0 },      // Outer square centered
-            { x: 0, y: 25 },     // Second square slightly down (Albers often offset)
-            { x: 0, y: 35 },     // Third square more down
-            { x: 0, y: 45 }      // Inner square most down
+            { x: 0, y: 0 },
+            { x: 0, y: 25 },
+            { x: 0, y: 35 },
+            { x: 0, y: 45 }
         ];
 
         function updateSquares() {
             const palette = colorPalettes[currentPaletteIndex];
             paletteNameElement.textContent = palette.name;
-            
-            // Subtle animation parameters
             const time = frame * 0.008;
-            
             squares.forEach((square, index) => {
                 const size = squareSizes[index];
                 const offset = squareOffsets[index];
-                
-                // Very subtle breathing effect
                 const breathe = Math.sin(time + index * 0.5) * 0.02 + 1;
                 const currentSize = size * breathe;
-                
-                // Subtle position shifts (maintaining Albers' offset philosophy)
                 const xShift = Math.sin(time * 0.7 + index) * 2;
                 const yShift = Math.cos(time * 0.5 + index) * 1.5;
-                
                 square.style.width = `${currentSize}px`;
                 square.style.height = `${currentSize}px`;
                 square.style.backgroundColor = palette.colors[index];
                 square.style.left = `${(500 - currentSize) / 2 + offset.x + xShift}px`;
                 square.style.top = `${(500 - currentSize) / 2 + offset.y + yShift}px`;
-                
-                // Very subtle color shifts to demonstrate simultaneous contrast
                 const hueShift = Math.sin(time * 0.3 + index * 0.8) * 5;
                 const brightness = Math.sin(time * 0.4 + index * 0.6) * 0.05 + 1;
-                
                 square.style.filter = `hue-rotate(${hueShift}deg) brightness(${brightness})`;
             });
+            // --- Dynamic text color for contrast ---
+            // Use outermost square color for all overlays
+            const infoColor = getContrastYIQ(palette.colors[0]);
+            document.getElementById('info').style.color = infoColor;
+            document.getElementById('color-info').style.color = infoColor;
+            exportBtn.style.color = infoColor;
+            exportBtn.style.borderColor = infoColor;
+            exportBtn.style.background = infoColor === '#fff' ? 'rgba(0,0,0,0.09)' : 'rgba(255,255,255,0.92)';
         }
 
         function nextPalette() {
-            // 50% chance to generate a completely random palette using color theory
             if (Math.random() < 0.5) {
                 colorPalettes.push(generateRandomPalette());
                 currentPaletteIndex = colorPalettes.length - 1;
-                // Remove old random palettes to prevent memory buildup
                 if (colorPalettes.length > 120) {
-                    colorPalettes.splice(90, 1); // Remove from random section
+                    colorPalettes.splice(90, 1);
                     currentPaletteIndex--;
                 }
             } else {
-                currentPaletteIndex = (currentPaletteIndex + 1) % Math.min(colorPalettes.length, 90); // Cycle through predefined palettes
+                currentPaletteIndex = (currentPaletteIndex + 1) % Math.min(colorPalettes.length, 90);
             }
-            
-            // Visual feedback
             container.style.transform = 'scale(0.98)';
             setTimeout(() => {
                 container.style.transform = 'scale(1)';
             }, 150);
-            
             updateSquares();
         }
 
@@ -364,19 +423,13 @@
         function exportCurrentComposition() {
             const canvas = exportCanvas;
             const ctx = canvas.getContext('2d');
-            const size = 800; // High resolution export
-            
+            const size = 800;
             canvas.width = size;
             canvas.height = size;
-            
-            // Background
             ctx.fillStyle = '#f5f5f5';
             ctx.fillRect(0, 0, size, size);
-            
             const palette = colorPalettes[currentPaletteIndex];
-            const scale = size / 500; // Scale factor for export
-            
-            // Draw squares from outer to inner
+            const scale = size / 500;
             for (let index = 0; index < 4; index++) {
                 const squareSize = squareSizes[index] * scale;
                 const offset = squareOffsets[index];
@@ -385,7 +438,6 @@
                 ctx.fillStyle = palette.colors[index];
                 ctx.fillRect(x, y, squareSize, squareSize);
             }
-            // Download
             const url = canvas.toDataURL('image/png');
             const link = document.createElement('a');
             link.download = `albers-homage-${palette.name.toLowerCase().replace(/\s+/g, '-')}.png`;
@@ -395,21 +447,17 @@
             document.body.removeChild(link);
         }
 
-        // --- Improved click handling for reliability ---
+        // --- Improved event handling for click and accessibility ---
         function handleContainerClick(e) {
-            // Only fire for clicks that are not from the export button or its descendants
             if (!exportBtn.contains(e.target)) {
                 nextPalette();
             }
         }
-
         container.addEventListener('click', handleContainerClick);
-
         exportBtn.addEventListener('click', (e) => {
             e.stopPropagation();
             exportCurrentComposition();
         });
-
         // Keyboard support (focus container for accessibility)
         container.addEventListener('keydown', (e) => {
             if (e.code === 'Space' || e.code === 'Enter') {
@@ -421,27 +469,21 @@
                 isAnimating = !isAnimating;
             }
         });
-
-        // Accessibility: allow focus on container for keyboard events
         container.addEventListener('focus', () => {
             container.classList.add('focus-visible');
         });
         container.addEventListener('blur', () => {
             container.classList.remove('focus-visible');
         });
-
-        // Touch optimization: tap to change palette on mobile
+        // Touch optimization for mobile
         container.addEventListener('touchstart', (e) => {
             if (!exportBtn.contains(e.target)) {
                 nextPalette();
             }
         });
-
-        // Initialize
+        // Initialize and autofocus
         updateSquares();
         animate();
-
-        // Autofocus for keyboard
         window.addEventListener('DOMContentLoaded', () => {
             container.focus();
         });
